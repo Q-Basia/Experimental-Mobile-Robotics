@@ -4,6 +4,7 @@ import os
 import rospy
 from duckietown.dtros import DTROS, NodeType
 from sensor_msgs.msg import CompressedImage, CameraInfo, Image
+import numpy as np
 
 import cv2
 from cv_bridge import CvBridge
@@ -22,7 +23,7 @@ class CameraReaderNode(DTROS):
         self._undistorted_img_topic = f"/{self._vehicle_name}/camera_node/undistorted_image/compressed"
         
         # bridge between OpenCV and ROS (to convert ROS images to OpenCV format)
-        self._bridge = CvBridge()
+        self.bridge = CvBridge()
         
         # # create window
         # self._window = "ex3p1-camera-reader"
@@ -87,7 +88,7 @@ class CameraReaderNode(DTROS):
         undistorted_msg = self.bridge.cv2_to_imgmsg(undistorted_img, encoding="bgr8")
 
         # Publish the undistorted image
-        self.image_pub.publish(undistorted_msg)
+        self._undistorted_img_topic.publish(undistorted_msg)
 
         rospy.loginfo("Published undistorted image.")
 

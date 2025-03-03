@@ -1,5 +1,5 @@
 <package>
-  <name>my_package</name>
+  <name>ex3p1</name>
   <version>0.0.1</version>
   <description>
   My first Catkin package in Duckietown.
