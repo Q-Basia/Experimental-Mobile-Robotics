@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(my_package)
+project(ex3p1)
 
 find_package(catkin REQUIRED COMPONENTS
   rospy
