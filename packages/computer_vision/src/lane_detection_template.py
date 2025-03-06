@@ -170,7 +170,7 @@ class LaneDetectionNode(DTROS):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
         return image
 
-    
+
     def detect_lane(self, **kwargs):
         # add your code here
         # potentially useful in question 2.1
@@ -214,4 +214,5 @@ class LaneDetectionNode(DTROS):
 
 if __name__ == '__main__':
     node = LaneDetectionNode(node_name='lane_detection_node')
+    self.cmd_vel_pub = rospy.Publisher(f"/{self._vehicle_name}/cmd_vel", Twist, queue_size=10)
     rospy.spin()
