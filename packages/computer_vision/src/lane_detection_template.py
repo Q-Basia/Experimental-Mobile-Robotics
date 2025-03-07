@@ -6,8 +6,9 @@
 import os
 import rospy
 from duckietown.dtros import DTROS, NodeType
-from sensor_msgs.msg import CompressedImage, CameraInfo, Image
+from sensor_msgs.msg import CompressedImage, CameraInfo, Image, ColorRGBA
 import numpy as np
+from duckietown_msgs.msg import LEDPattern
 
 import cv2
 from cv_bridge import CvBridge
@@ -38,7 +39,23 @@ class LaneDetectionNode(DTROS):
         self.camera_info_sub = rospy.Subscriber(self._camera_info_topic, CameraInfo, self.camera_info_callback)
 
         # color detection parameters in HSV format
-        
+        self.red_lower = np.array([0,95,108], np.uint8)
+        self.red_upper = np.array([8,171,255], np.uint8)
+        self.green_lower = np.array([44,56,140], np.uint8)
+        self.green_upper = np.array([102,106,188], np.uint8)
+        self.blue_lower = np.array([85,110,108], np.uint8)
+        self.blue_upper = np.array([114,238,210], np.uint8)
+
+        # w,h of each lane
+        self.detected_lanes = {
+        'red': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None},
+        'green': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None},
+        'blue': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None}
+        }
+        self.red_lane = (0,0)
+        self.green_lane = (0,0)
+        self.blue_lane = (0,0)
+
         # initialize bridge and subscribe to camera feed
         self.bridge = CvBridge()
         self.camera_sub = rospy.Subscriber(self._distorted_img_topic, CompressedImage, self.callback)
@@ -47,7 +64,27 @@ class LaneDetectionNode(DTROS):
         # lane detection publishers
         self.undistorted_pub = rospy.Publisher(self._undistorted_img_topic, CompressedImage, queue_size=1)
         self.color_detection_pub = rospy.Publisher(self._color_detection_topic, CompressedImage, queue_size=1)
+
         # LED
+        self.LEDspattern = LEDPattern()
+        self.light_color_list = [
+                                [1, 0, 0, 1],
+                                [1, 0, 0, 1],
+                                [1, 0, 0, 1],
+                                [1, 0, 0, 1],
+                                [1, 0, 0, 1],
+                                 ]
+        self.leds = {
+            "front_left": [1,0,0,1], 
+            "front_right": [1,0,0,1],
+            "back_left": [1,0,0,1],
+            "back_right": [1,0,0,1],
+            "center": [1,0,0,1],
+            }
+        
+
+        self.pub_leds = rospy.Publisher(f"/{self._vehicle_name}/led_emitter_node/led_pattern", LEDPattern, queue_size=10)
+        self.count = 1
         
         # ROI vertices
         self.roi = None
@@ -93,17 +130,11 @@ class LaneDetectionNode(DTROS):
         # add your code here
         hsvFrame = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-        red_lower = np.array([0,95,108], np.uint8)
-        red_upper = np.array([8,171,255], np.uint8)
-        red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
+        red_mask = cv2.inRange(hsvFrame, self.red_lower, self.red_upper)
 
-        green_lower = np.array([44,56,140], np.uint8)
-        green_upper = np.array([102,106,188], np.uint8)
-        green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
+        green_mask = cv2.inRange(hsvFrame, self.green_lower, self.green_upper)
 
-        blue_lower = np.array([85,110,108], np.uint8)
-        blue_upper = np.array([114,238,210], np.uint8)
-        blue_mask = cv2.inRange(hsvFrame, blue_lower, blue_upper)
+        blue_mask = cv2.inRange(hsvFrame, self.blue_lower, self.blue_upper)
 
         kernel = np.ones((5,5), "uint8")
 
@@ -131,6 +162,10 @@ class LaneDetectionNode(DTROS):
             area = cv2.contourArea(contour) 
             if(area > 300): 
                 x, y, w, h = cv2.boundingRect(contour) 
+                self.detected_lanes['red']['detected'] = True
+                self.detected_lanes['red']['contour'] = contour
+                self.detected_lanes['red']['dimensions'] = (w, h)
+                self.detected_lanes['red']['bbox'] = (x, y, w, h)
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (0, 0, 255), 2)
@@ -146,7 +181,11 @@ class LaneDetectionNode(DTROS):
         for pic, contour in enumerate(contours): 
             area = cv2.contourArea(contour) 
             if(area > 300): 
-                x, y, w, h = cv2.boundingRect(contour) 
+                x, y, w, h = cv2.boundingRect(contour)
+                self.detected_lanes['green']['detected'] = True
+                self.detected_lanes['green']['contour'] = contour
+                self.detected_lanes['green']['dimensions'] = (w, h)
+                self.detected_lanes['green']['bbox'] = (x, y, w, h)
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (0, 255, 0), 2) 
@@ -161,7 +200,11 @@ class LaneDetectionNode(DTROS):
         for pic, contour in enumerate(contours): 
             area = cv2.contourArea(contour) 
             if(area > 300): 
-                x, y, w, h = cv2.boundingRect(contour) 
+                x, y, w, h = cv2.boundingRect(contour)
+                self.detected_lanes['blue']['detected'] = True
+                self.detected_lanes['blue']['contour'] = contour
+                self.detected_lanes['blue']['dimensions'] = (w, h)
+                self.detected_lanes['blue']['bbox'] = (x, y, w, h)
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (255, 0, 0), 2) 
@@ -175,6 +218,32 @@ class LaneDetectionNode(DTROS):
         # add your code here
         # potentially useful in question 2.1
         pass
+
+    def publish_LED_pattern(self):
+        # Publish the LED pattern to the led_emitter_node
+        self.LEDspattern.rgb_vals = []
+        for i in range(5):
+            rgba = ColorRGBA()
+            rgba.r = self.light_color_list[i][0]
+            rgba.g = self.light_color_list[i][1]
+            rgba.b = self.light_color_list[i][2]
+            rgba.a = self.light_color_list[i][3]
+
+            self.LEDspattern.rgb_vals.append(rgba)
+        self.pub_leds.publish(self.LEDspattern)
+
+    def set_led_color(self, colors):
+        # Set the color of the LEDs
+
+        # colors should be a list of length 5 with 
+        # each element being a list of length 4
+        for i in range(len(self.light_color_list)):
+            if len(colors[i]==3):
+                self.light_color_list[i] = colors[i] + [1]
+            else:
+                self.light_color_list[i] = colors[i]
+        
+        self.publish_LED_pattern()
     
     
     def callback(self, img_msg):
@@ -206,13 +275,30 @@ class LaneDetectionNode(DTROS):
         
         # control LEDs based on detected colors
 
-        # anything else you want to add here
-        
-        pass
-
-    # add other functions as needed
+        # if self.detected_lanes['red']['dimensions'][0]*self.detected_lanes['red']['dimensions'][1] > 500:
+        #     # set led colors to red if red lane detected at a large size
+        #     self.set_led_color([[1, 0, 0, 1],
+        #                         [1, 0, 0, 1],
+        #                         [1, 0, 0, 1],
+        #                         [1, 0, 0, 1],
+        #                         [1, 0, 0, 1],])
+            
+        # elif self.detected_lanes['green']['dimensions'][0]*self.detected_lanes['green']['dimensions'][1] > 500:
+        #     # set led colors to green if green lane detected at a large size
+        #     self.set_led_color([[0, 1, 0, 1],
+        #                         [0, 1, 0, 1],
+        #                         [0, 1, 0, 1],
+        #                         [0, 1, 0, 1],
+        #                         [0, 1, 0, 1],])
+            
+        # elif self.detected_lanes['blue']['dimensions'][0]*self.detected_lanes['blue']['dimensions'][1] > 500:
+        #     # set led colors to blue if blue lane detected at a large size
+        #     self.set_led_color([[0, 0, 1, 1],
+        #                         [0, 0, 1, 1],
+        #                         [0, 0, 1, 1],
+        #                         [0, 0, 1, 1],
+        #                         [0, 0, 1, 1],])
 
 if __name__ == '__main__':
     node = LaneDetectionNode(node_name='lane_detection_node')
-    self.cmd_vel_pub = rospy.Publisher(f"/{self._vehicle_name}/cmd_vel", Twist, queue_size=10)
     rospy.spin()
