@@ -22,7 +22,7 @@ class LaneControllerNode(DTROS):
         self.controller_type = "pid"  # Can be p, pd or pid
         
         # PID gains 
-        self.Kp = 5.0  # Proportional gain
+        self.Kp = 3.0  # Proportional gain
         self.Ki = 0.1   # Integral gain
         self.Kd = 1.0   # Derivative gain
         
@@ -67,9 +67,9 @@ class LaneControllerNode(DTROS):
         
         # Variables to store lane information
         self.yellow_lane_detected = False
-        self.yellow_lane_distance = 0.0  # Lateral distance in meters
+        self.yellow_lane_lateral_distance = 0.0  # Lateral distance in meters
         self.white_lane_detected = False
-        self.white_lane_distance = 0.0   # Lateral distance in meters
+        self.white_lane_lateral_distance = 0.0   # Lateral distance in meters
         
         # Target lateral position (ideally in the middle between white and yellow lanes)
         self.target_lateral_position = 0.0  # meters from center
@@ -124,13 +124,16 @@ class LaneControllerNode(DTROS):
         d_term = self.Kd * self.derivative
         
         return p_term + i_term + d_term
-        self.count = 1
+
     def get_control_output(self, error):
         # add your code here
         current_time = rospy.get_time()
         dt = current_time - self.last_callback_time
         self.last_callback_time = current_time
-        
+        # Update current distance
+        # Note: this is just an estimation of distance so that I can stop after 1.5 m
+        # normally, it would just keep going and keep following the lanes
+        # self.current_distance += speed * 0.2  # Assuming 20 Hz control rate
         if self.controller_type == "p":
             return self.calculate_p_control(error)
         elif self.controller_type == "pd":
@@ -185,8 +188,8 @@ class LaneControllerNode(DTROS):
             self.yellow_lane_lateral_distance = msg.lateral_distance
             self.yellow_lane_forward_distance = msg.forward_distance
             
-            # Update control
-            self.update_control()
+            if not self.white_lane_detected:
+                self.update_control()
 
     def white_lane_callback(self, msg):
         self.white_lane_detected = msg.detected
@@ -201,10 +204,11 @@ class LaneControllerNode(DTROS):
     def update_control(self):
 
         if self.yellow_lane_detected:
+            rospy.loginfo(f"yellow lane distance: {self.yellow_lane_lateral_distance}")
             # Only yellow lane detected, maintain fixed offset
             # Usually yellow lane is on the left, so we want to stay a bit to the right
             # Based on homography from robot's POV, left is +ve y-axis so we add -ve offset
-            target_offset = -0.15  # meters
+            target_offset = -0.20  # meters
             target_lateral = self.yellow_lane_lateral_distance + target_offset
             
             self.error = 0.0 - target_lateral
