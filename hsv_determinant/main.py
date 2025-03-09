@@ -5,7 +5,7 @@ def nothing(x):
     pass
 
 # Load image
-image_path = 'red7.png'
+image_path = 'yellow_and_white.png'
 image = cv2.imread(image_path)
 if image is None:
     print(f"Could not read image: {image_path}")

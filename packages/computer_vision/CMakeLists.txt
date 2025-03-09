@@ -12,6 +12,11 @@ add_service_files(
   GetLaneInfo.srv
 )
 
+add_message_files(
+  FILES
+  LaneDistance.msg
+)
+
 generate_messages(
   DEPENDENCIES 
   std_msgs

@@ -9,6 +9,7 @@ from duckietown.dtros import DTROS, NodeType
 from sensor_msgs.msg import CompressedImage, CameraInfo
 import numpy as np
 from computer_vision.srv import GetLaneInfo, GetLaneInfoResponse
+from computer_vision.msg import LaneDistance
 import cv2
 from cv_bridge import CvBridge
 
@@ -49,7 +50,9 @@ class LaneDetectionNode(DTROS):
         self.detected_lanes = {
         'red': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None},
         'green': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None},
-        'blue': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None}
+        'blue': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None},
+        'yellow': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None},
+        'white': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None}
         }
 
         # initialize bridge and subscribe to camera feed
@@ -60,7 +63,11 @@ class LaneDetectionNode(DTROS):
         self.undistorted_pub = rospy.Publisher(self._undistorted_img_topic, CompressedImage, queue_size=1)
         self.color_detection_pub = rospy.Publisher(self._color_detection_topic, CompressedImage, queue_size=1)
 
-        self.count = 1
+        # These lane detection topic messages used for lane following  
+        self._yellow_lane_distance_topic = f"/{self._vehicle_name}/lane_detection_node/yellow_lane_distance"
+        self._white_lane_distance_topic = f"/{self._vehicle_name}/lane_detection_node/white_lane_distance"
+        self.yellow_lane_distance_pub = rospy.Publisher(self._yellow_lane_distance_topic, LaneDistance, queue_size=1)
+        self.white_lane_distance_pub = rospy.Publisher(self._white_lane_distance_topic, LaneDistance, queue_size=1)
 
         # Homomgraphy initalization for estimating distance to lane
         # The homography parameters were exported from the duckiebot dashboard after performing extrinsic calibration
@@ -282,13 +289,95 @@ class LaneDetectionNode(DTROS):
         
         return response
 
-    def detect_lane(self, **kwargs):
+    def detect_lane(self, image):
         # add your code here
-        # potentially useful in question 2.1
-        pass
-
-
-    
+        hsvFrame = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        
+        # Yellow lane detection
+        yellow_lower = np.array([20, 101, 105], np.uint8)
+        yellow_upper = np.array([29, 255, 255], np.uint8)
+        yellow_mask = cv2.inRange(hsvFrame, yellow_lower, yellow_upper)
+        yellow_mask = cv2.dilate(yellow_mask, np.ones((5, 5), "uint8"))
+        
+        # White lane detection
+        white_lower = np.array([121, 13, 183], np.uint8)
+        white_upper = np.array([127, 39, 255], np.uint8)
+        white_mask = cv2.inRange(hsvFrame, white_lower, white_upper)
+        white_mask = cv2.dilate(white_mask, np.ones((5, 5), "uint8"))
+        
+        # Create visualization
+        annotated_img = image.copy()
+        
+        # Process yellow lane
+        yellow_msg = LaneDistance()
+        yellow_msg.header.stamp = rospy.Time.now()
+        yellow_msg.detected = False
+        
+        contours, _ = cv2.findContours(yellow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            largest_contour = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(largest_contour)
+            if area > 300:
+                x, y, w, h = cv2.boundingRect(largest_contour)
+                # Calculate bottom center point (closest to robot)
+                bottom_center_x = x + w // 2
+                bottom_center_y = y + h + self.org_img_h // 4 # extra height term to account for resize+crop
+                
+                # Convert to original image coordinates (if needed due to resize/crop)
+                orig_x = bottom_center_x * 2  # Scale back to original size
+                orig_y = bottom_center_y * 2  # Adjust based on your preprocessing
+                
+                # Project to ground coordinates using your homography
+                ground_x, ground_y = self.project_pixel_to_ground(orig_x, orig_y)
+                
+                if ground_x is not None and ground_y is not None:
+                    # Detected successfully
+                    yellow_msg.detected = True
+                    # ground_y is the lateral distance (negative means left of center)
+                    yellow_msg.lateral_distance = ground_y
+                    # ground_x is the forward distance
+                    yellow_msg.forward_distance = ground_x
+                    
+                    # Draw on visualization
+                    annotated_img = cv2.rectangle(annotated_img, (x, y), (x + w, y + h), (0, 255, 255), 2)
+                    text = f"Dist: {ground_x:.2f}m, {ground_y:.2f}m"
+                    cv2.putText(annotated_img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+        
+        # Publish yellow lane distance
+        self.yellow_lane_distance_pub.publish(yellow_msg)
+        
+        # Process white lane (similar to yellow lane)
+        white_msg = LaneDistance()
+        white_msg.header.stamp = rospy.Time.now()
+        white_msg.detected = False
+        
+        contours, _ = cv2.findContours(white_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if contours:
+            largest_contour = max(contours, key=cv2.contourArea)
+            area = cv2.contourArea(largest_contour)
+            if area > 300:
+                x, y, w, h = cv2.boundingRect(largest_contour)
+                bottom_center_x = x + w // 2
+                bottom_center_y = y + h + self.org_img_h // 4 
+                
+                orig_x = bottom_center_x * 2
+                orig_y = bottom_center_y * 2
+                
+                ground_x, ground_y = self.project_pixel_to_ground(orig_x, orig_y)
+                
+                if ground_x is not None and ground_y is not None:
+                    white_msg.detected = True
+                    white_msg.lateral_distance = ground_y
+                    white_msg.forward_distance = ground_x
+                    
+                    annotated_img = cv2.rectangle(annotated_img, (x, y), (x + w, y + h), (255, 255, 255), 2)
+                    text = f"Dist: {ground_x:.2f}m, {ground_y:.2f}m"
+                    cv2.putText(annotated_img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        
+        # Publish white lane distance
+        self.white_lane_distance_pub.publish(white_msg)
+        
+        return annotated_img
     
     def callback(self, img_msg):
         # add your code here
@@ -304,12 +393,11 @@ class LaneDetectionNode(DTROS):
         # preprocess image
         preprocessed_image = self.preprocess_image(undistorted_image)
         
-        # detect lanes - 2.1 
-        
-        # publish lane detection results
+        # detect lanes - 2.1 (lane detection results published inside detect_lane())
+        lane_detected_image = self.detect_lane(preprocessed_image)
         
         # detect lanes and colors - 1.3
-        color_detected_image = self.detect_lane_color(preprocessed_image)
+        color_detected_image = self.detect_lane_color(lane_detected_image)
         color_detection_msg = self.bridge.cv2_to_compressed_imgmsg(color_detected_image)
         self.color_detection_pub.publish(color_detection_msg)
         
