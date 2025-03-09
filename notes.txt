@@ -79,3 +79,36 @@ homography:
 used chatgpt to understand how services work for part 1.6 to combine previous parameters
 Note that to create a custom service that exchanges custom requests and responses, must create a .srv file in your package and include it in the .xml and CMakeLists files
 Always start the service server node first (lane_detection in our case)
+
+
+
+
+
+
+
+
+        # control LEDs based on detected colors
+
+        # if self.detected_lanes['red']['dimensions'][0]*self.detected_lanes['red']['dimensions'][1] > 500:
+        #     # set led colors to red if red lane detected at a large size
+        #     self.set_led_color([[1, 0, 0, 1],
+        #                         [1, 0, 0, 1],
+        #                         [1, 0, 0, 1],
+        #                         [1, 0, 0, 1],
+        #                         [1, 0, 0, 1],])
+            
+        # elif self.detected_lanes['green']['dimensions'][0]*self.detected_lanes['green']['dimensions'][1] > 500:
+        #     # set led colors to green if green lane detected at a large size
+        #     self.set_led_color([[0, 1, 0, 1],
+        #                         [0, 1, 0, 1],
+        #                         [0, 1, 0, 1],
+        #                         [0, 1, 0, 1],
+        #                         [0, 1, 0, 1],])
+            
+        # elif self.detected_lanes['blue']['dimensions'][0]*self.detected_lanes['blue']['dimensions'][1] > 500:
+        #     # set led colors to blue if blue lane detected at a large size
+        #     self.set_led_color([[0, 0, 1, 1],
+        #                         [0, 0, 1, 1],
+        #                         [0, 0, 1, 1],
+        #                         [0, 0, 1, 1],
+        #                         [0, 0, 1, 1],])

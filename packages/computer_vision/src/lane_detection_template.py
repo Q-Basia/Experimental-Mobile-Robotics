@@ -70,15 +70,19 @@ class LaneDetectionNode(DTROS):
         0.0003409556379103712, 0.0174415825291776, -3.2316507961510252
         ]
         self.H = np.array(homography).reshape((3,3))
+
+        self.org_img_w = 640
+        self.org_img_h = 480
         
         # ROI vertices
         self.roi = None
 
         # Set up services for PART 1 lane detection
-        self.red_lane_service = rospy.Service(f'/{self._vehicle_name}/lane_detection_node/get_red_lane_info', GetLaneInfo, self.get_red_lane_info)
-        self.green_lane_service = rospy.Service(f'/{self._vehicle_name}/lane_detection_node/get_green_lane_info', GetLaneInfo, self.get_green_lane_info)
-        self.blue_lane_service = rospy.Service(f'/{self._vehicle_name}/lane_detection_node/get_blue_lane_info', GetLaneInfo, self.get_blue_lane_info)
-        
+        self.lane_info_service = rospy.Service(
+            f'/{self._vehicle_name}/{node_name}/get_lane_info', 
+            GetLaneInfo, 
+            self.get_lane_info
+        )
         # define other variables as needed
         self.rate = rospy.Rate(20)
 
@@ -113,7 +117,9 @@ class LaneDetectionNode(DTROS):
     def preprocess_image(self, image):
         # add your code here
         resized_image = cv2.resize(image, (320, 240))
-        return cv2.GaussianBlur(resized_image, (5,5), 0)
+        h,_ = resized_image.shape[:2]
+        cropped_image = resized_image[h//2:,:]
+        return cv2.GaussianBlur(cropped_image, (5,5), 0)
     
     
     def detect_lane_color(self, image):
@@ -156,11 +162,14 @@ class LaneDetectionNode(DTROS):
                 self.detected_lanes['red']['contour'] = contour
                 self.detected_lanes['red']['dimensions'] = (w, h)
                 self.detected_lanes['red']['bbox'] = (x, y, w, h)
+                bottom_center_x = x + w // 2
+                bottom_center_y = y + h + self.org_img_h // 4
+                ground_x, ground_y = self.project_pixel_to_ground(bottom_center_x*2, bottom_center_y*2)
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (0, 0, 255), 2)
-                dimensions_text = f"{w}x{h}"
-                cv2.putText(image, dimensions_text, (x, y - 5),
+                dimensions_text = f"{w}x{h}x{ground_x}"
+                cv2.putText(image, dimensions_text, (x, y + h + 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)     
 
         # Creating contour to track green color 
@@ -176,11 +185,14 @@ class LaneDetectionNode(DTROS):
                 self.detected_lanes['green']['contour'] = contour
                 self.detected_lanes['green']['dimensions'] = (w, h)
                 self.detected_lanes['green']['bbox'] = (x, y, w, h)
+                bottom_center_x = x + w // 2
+                bottom_center_y = y + h + self.org_img_h // 4
+                ground_x, ground_y = self.project_pixel_to_ground(bottom_center_x*2, bottom_center_y*2)
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (0, 255, 0), 2) 
-                dimensions_text = f"{w}x{h}"
-                cv2.putText(image, dimensions_text, (x, y - 5),
+                dimensions_text = f"{w}x{h}x{ground_x}"
+                cv2.putText(image, dimensions_text, (x, y + h + 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
 
         # Creating contour to track blue color 
@@ -195,18 +207,21 @@ class LaneDetectionNode(DTROS):
                 self.detected_lanes['blue']['contour'] = contour
                 self.detected_lanes['blue']['dimensions'] = (w, h)
                 self.detected_lanes['blue']['bbox'] = (x, y, w, h)
+                bottom_center_x = x + w // 2
+                bottom_center_y = y + h + self.org_img_h // 4
+                ground_x, ground_y = self.project_pixel_to_ground(bottom_center_x*2, bottom_center_y*2)
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (255, 0, 0), 2) 
-                dimensions_text = f"{w}x{h}"
-                cv2.putText(image, dimensions_text, (x, y - 5),
+                dimensions_text = f"{w}x{h}x{ground_x}"
+                cv2.putText(image, dimensions_text, (x, y + h + 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
         return image
 
 
     def project_pixel_to_ground(self, pixel_x, pixel_y):
 
-        point = np.array([pixel_x, pixel_y], 1.0).reshape(3,1)
+        point = np.array([pixel_x, pixel_y, 1.0]).reshape(3,1)
         ground_point = np.matmul(self.H, point).reshape(3)
 
         if abs(ground_point[2]) > 1e-7:
@@ -217,10 +232,55 @@ class LaneDetectionNode(DTROS):
             rospy.logwarn("Point is too close to judge distance, zero division error")
             return None, None
         
-    # Service Callbacks
-    # def lane_detection_service_info(self, req):
-    #     response = GetLaneInfoResponse()
-    #     lane_infor
+    # Service Callback
+    def get_lane_info(self, req):
+        response = GetLaneInfoResponse()
+        
+        # Map the color enum to the corresponding lane key
+        color_map = {
+            RED: 'red',
+            GREEN: 'green',
+            BLUE: 'blue'
+        }
+        
+        # Check if the requested color is valid
+        if req.color not in color_map:
+            rospy.logwarn(f"Invalid color requested: {req.color}")
+            response.detected = False
+            return response
+            
+        # Get the lane information for the requested color
+        lane_key = color_map[req.color]
+        lane_info = self.detected_lanes[lane_key]
+        
+        response.detected = lane_info['detected']
+        if lane_info['detected'] and lane_info['bbox'] is not None:
+            x, y, w, h = lane_info['bbox']
+            response.x = x
+            response.y = y
+            response.width = w
+            response.height = h
+            response.area = w * h
+            
+            # Calculate the bottom center point of the bounding box
+            # This is typically where the lane meets the ground
+            bottom_center_x = x + w // 2
+            bottom_center_y = y + h + self.org_img_h // 4 # last term is to adjust for image resize and cropping
+            
+            # Project to ground coordinates (multiplying by 2 because initial image is resized to half the size)
+            ground_x, ground_y = self.project_pixel_to_ground(bottom_center_x*2, bottom_center_y*2)
+            print(ground_x)
+            
+            if ground_x is not None and ground_y is not None:
+                # Distance is the y-coordinate in the ground plane
+                # (assuming x-axis points forward from the robot) (from calibration)
+                response.distance = ground_x
+                rospy.logdebug(f"{lane_key} lane ground coordinates: x={ground_x:.2f}m, y={ground_y:.2f}m")
+            else:
+                # Fallback to simple approximation
+                response.distance = 1000.0 / (h + 0.1)
+        
+        return response
 
     def detect_lane(self, **kwargs):
         # add your code here
@@ -256,32 +316,6 @@ class LaneDetectionNode(DTROS):
         # publish undistorted image
         undistorted_msg = self.bridge.cv2_to_compressed_imgmsg(undistorted_image)
         self.undistorted_pub.publish(undistorted_msg)
-        
-        # control LEDs based on detected colors
-
-        # if self.detected_lanes['red']['dimensions'][0]*self.detected_lanes['red']['dimensions'][1] > 500:
-        #     # set led colors to red if red lane detected at a large size
-        #     self.set_led_color([[1, 0, 0, 1],
-        #                         [1, 0, 0, 1],
-        #                         [1, 0, 0, 1],
-        #                         [1, 0, 0, 1],
-        #                         [1, 0, 0, 1],])
-            
-        # elif self.detected_lanes['green']['dimensions'][0]*self.detected_lanes['green']['dimensions'][1] > 500:
-        #     # set led colors to green if green lane detected at a large size
-        #     self.set_led_color([[0, 1, 0, 1],
-        #                         [0, 1, 0, 1],
-        #                         [0, 1, 0, 1],
-        #                         [0, 1, 0, 1],
-        #                         [0, 1, 0, 1],])
-            
-        # elif self.detected_lanes['blue']['dimensions'][0]*self.detected_lanes['blue']['dimensions'][1] > 500:
-        #     # set led colors to blue if blue lane detected at a large size
-        #     self.set_led_color([[0, 0, 1, 1],
-        #                         [0, 0, 1, 1],
-        #                         [0, 0, 1, 1],
-        #                         [0, 0, 1, 1],
-        #                         [0, 0, 1, 1],])
 
 if __name__ == '__main__':
     node = LaneDetectionNode(node_name='lane_detection_node')

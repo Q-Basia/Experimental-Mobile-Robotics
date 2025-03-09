@@ -1,4 +1,8 @@
 # Request (empty)
+int8 RED=1
+int8 GREEN=2
+int8 BLUE=3
+int8 color            # The color to get information for (use constants above)
 ---
 # Response
 bool detected      # Whether the lane was detected

@@ -6,7 +6,7 @@ source /environment.sh
 dt-launchfile-init
 
 # launch subscriber
-rosrun computer_vision lane_detection_template.py
-
+rosrun computer_vision navigate_template.py --lane red
+ 
 # wait for app to end
 dt-launchfile-join

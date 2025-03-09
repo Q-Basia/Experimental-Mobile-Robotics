@@ -27,6 +27,9 @@ class BehaviorController(DTROS):
         # call navigation control node which includes led control
         self.navigation_control_node = NavigationControl(node_name="navigate_control_node")
         # lane detection node used to detect lanes
+
+        #Instead of calling node, make lane detection node publish self.detect_lanes to a custom topic
+        #Subscribe to it here
         self.lane_detection_node = LaneDetectionNode(node_name="lane_detect_node")
 
         # define parameters
