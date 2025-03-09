@@ -1,0 +1,10 @@
+# Request (empty)
+---
+# Response
+bool detected      # Whether the lane was detected
+int32 x            # X coordinate of the bounding box
+int32 y            # Y coordinate of the bounding box
+int32 width        # Width of the bounding box
+int32 height       # Height of the bounding box
+int32 area         # Area of the bounding box
+float32 distance   # Estimated distance to the lane in meters (from homography)

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 
-# potentially useful for question - 1.1 - 1.4 and 2.1
+# 1.1 - 1.3 and 2.1
 
 # import required libraries
 import os
 import rospy
 from duckietown.dtros import DTROS, NodeType
-from sensor_msgs.msg import CompressedImage, CameraInfo, Image, ColorRGBA
+from sensor_msgs.msg import CompressedImage, CameraInfo
 import numpy as np
-from duckietown_msgs.msg import LEDPattern
-
+from computer_vision.srv import GetLaneInfo, GetLaneInfoResponse
 import cv2
 from cv_bridge import CvBridge
 
@@ -52,42 +51,33 @@ class LaneDetectionNode(DTROS):
         'green': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None},
         'blue': {'detected': False, 'contour': None, 'dimensions': None, 'bbox': None}
         }
-        self.red_lane = (0,0)
-        self.green_lane = (0,0)
-        self.blue_lane = (0,0)
 
         # initialize bridge and subscribe to camera feed
         self.bridge = CvBridge()
         self.camera_sub = rospy.Subscriber(self._distorted_img_topic, CompressedImage, self.callback)
 
-
         # lane detection publishers
         self.undistorted_pub = rospy.Publisher(self._undistorted_img_topic, CompressedImage, queue_size=1)
         self.color_detection_pub = rospy.Publisher(self._color_detection_topic, CompressedImage, queue_size=1)
 
-        # LED
-        self.LEDspattern = LEDPattern()
-        self.light_color_list = [
-                                [1, 0, 0, 1],
-                                [1, 0, 0, 1],
-                                [1, 0, 0, 1],
-                                [1, 0, 0, 1],
-                                [1, 0, 0, 1],
-                                 ]
-        self.leds = {
-            "front_left": [1,0,0,1], 
-            "front_right": [1,0,0,1],
-            "back_left": [1,0,0,1],
-            "back_right": [1,0,0,1],
-            "center": [1,0,0,1],
-            }
-        
-
-        self.pub_leds = rospy.Publisher(f"/{self._vehicle_name}/led_emitter_node/led_pattern", LEDPattern, queue_size=10)
         self.count = 1
+
+        # Homomgraphy initalization for estimating distance to lane
+        # The homography parameters were exported from the duckiebot dashboard after performing extrinsic calibration
+        homography = [
+        -4.99621433668091e-05, 0.0012704090688819693, 0.2428235605203261,
+        -0.001999628080487182, -5.849807527639727e-05, 0.6400119336043912,
+        0.0003409556379103712, 0.0174415825291776, -3.2316507961510252
+        ]
+        self.H = np.array(homography).reshape((3,3))
         
         # ROI vertices
         self.roi = None
+
+        # Set up services for PART 1 lane detection
+        self.red_lane_service = rospy.Service(f'/{self._vehicle_name}/lane_detection_node/get_red_lane_info', GetLaneInfo, self.get_red_lane_info)
+        self.green_lane_service = rospy.Service(f'/{self._vehicle_name}/lane_detection_node/get_green_lane_info', GetLaneInfo, self.get_green_lane_info)
+        self.blue_lane_service = rospy.Service(f'/{self._vehicle_name}/lane_detection_node/get_blue_lane_info', GetLaneInfo, self.get_blue_lane_info)
         
         # define other variables as needed
         self.rate = rospy.Rate(20)
@@ -214,36 +204,30 @@ class LaneDetectionNode(DTROS):
         return image
 
 
+    def project_pixel_to_ground(self, pixel_x, pixel_y):
+
+        point = np.array([pixel_x, pixel_y], 1.0).reshape(3,1)
+        ground_point = np.matmul(self.H, point).reshape(3)
+
+        if abs(ground_point[2]) > 1e-7:
+            ground_x = ground_point[0] / ground_point[2]
+            ground_y = ground_point[1] / ground_point[2]
+            return ground_x, ground_y
+        else:
+            rospy.logwarn("Point is too close to judge distance, zero division error")
+            return None, None
+        
+    # Service Callbacks
+    # def lane_detection_service_info(self, req):
+    #     response = GetLaneInfoResponse()
+    #     lane_infor
+
     def detect_lane(self, **kwargs):
         # add your code here
         # potentially useful in question 2.1
         pass
 
-    def publish_LED_pattern(self):
-        # Publish the LED pattern to the led_emitter_node
-        self.LEDspattern.rgb_vals = []
-        for i in range(5):
-            rgba = ColorRGBA()
-            rgba.r = self.light_color_list[i][0]
-            rgba.g = self.light_color_list[i][1]
-            rgba.b = self.light_color_list[i][2]
-            rgba.a = self.light_color_list[i][3]
 
-            self.LEDspattern.rgb_vals.append(rgba)
-        self.pub_leds.publish(self.LEDspattern)
-
-    def set_led_color(self, colors):
-        # Set the color of the LEDs
-
-        # colors should be a list of length 5 with 
-        # each element being a list of length 4
-        for i in range(len(self.light_color_list)):
-            if len(colors[i]==3):
-                self.light_color_list[i] = colors[i] + [1]
-            else:
-                self.light_color_list[i] = colors[i]
-        
-        self.publish_LED_pattern()
     
     
     def callback(self, img_msg):

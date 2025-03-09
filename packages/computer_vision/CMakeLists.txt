@@ -3,6 +3,17 @@ project(computer_vision)
 
 find_package(catkin REQUIRED COMPONENTS
   rospy
+  message_generation
+)
+
+add_service_files(
+  FILES
+  GetLaneInfo.srv
+)
+
+generate_messages(
+  DEPENDENCIES 
+  std_msgs
 )
 
 catkin_package()
