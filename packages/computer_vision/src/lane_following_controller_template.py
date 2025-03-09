@@ -7,9 +7,9 @@ import os
 import rospy
 import numpy as np
 from duckietown.dtros import DTROS, NodeType
-from sensor_msgs.msg import CompressedImage
 from duckietown_msgs.msg import Twist2DStamped
 from std_msgs.msg import Float32, Bool
+from computer_vision.msg import LaneDistance
 import cv2
 from cv_bridge import CvBridge
 
@@ -47,13 +47,13 @@ class LaneControllerNode(DTROS):
         # initialize publisher/subscribers
         self.yellow_lane_sub = rospy.Subscriber(
             f'/{self._vehicle_name}/lane_detection_node/yellow_lane_distance',
-            CompressedImage,
+            LaneDistance,
             self.yellow_lane_callback
         )
         
         self.white_lane_sub = rospy.Subscriber(
             f'/{self._vehicle_name}/lane_detection_node/white_lane_distance',
-            CompressedImage,
+            LaneDistance,
             self.white_lane_callback
         )
         
@@ -76,6 +76,7 @@ class LaneControllerNode(DTROS):
         
         # Time tracking for integral and derivative control
         self.last_callback_time = rospy.get_time()
+        self.start_time = rospy.Time.now().to_sec()
         
         rospy.loginfo(f"Lane controller initialized with {self.controller_type} control")
         rospy.Rate(20)
@@ -137,14 +138,15 @@ class LaneControllerNode(DTROS):
         elif self.controller_type == "pid":
             return self.calculate_pid_control(error, dt)
         else:
-            rospy.logwarn(f"Unknown controller type: {self.controller_type}, using P control")
+            rospy.logwarn(f"Unknown contself.current_distance >= self.target_distanceroller type: {self.controller_type}, using P control")
             return self.calculate_p_control(error)
 
     def publish_cmd(self, omega, speed=None):
         # If we've reached the target distance, stop
-        if self.current_distance >= self.target_distance:
+        time = rospy.Time.now().to_sec()
+        if time - self.start_time >= 15:
             if self.is_moving:
-                rospy.loginfo(f"Target distance {self.target_distance}m reached! Stopping...")
+                rospy.loginfo(f"duration ended")
                 self.is_moving = False
             
             # Stop the robot
@@ -153,7 +155,7 @@ class LaneControllerNode(DTROS):
             cmd_msg.v = 0.0
             cmd_msg.omega = 0.0
             self.cmd_vel_pub.publish(cmd_msg)
-            rospy.signal_shutdown()
+            rospy.signal_shutdown("duration limit reached")
             return
             
         # If we're not yet moving, start tracking distance
@@ -176,11 +178,6 @@ class LaneControllerNode(DTROS):
         cmd_msg.omega = omega
         self.cmd_vel_pub.publish(cmd_msg)
         
-        # Update current distance
-        # Note: this is just an estimation of distance so that I can stop after 1.5 m
-        # normally, it would just keep going and keep following the lanes
-        self.current_distance += speed * 0.2  # Assuming 20 Hz control rate
-        
 
     def yellow_lane_callback(self, msg):
         self.yellow_lane_detected = msg.detected
@@ -202,24 +199,8 @@ class LaneControllerNode(DTROS):
                 self.update_control()
     
     def update_control(self):
-        if self.yellow_lane_detected and self.white_lane_detected:
-            # Target position is the midpoint between lanes
-            target_lateral = (self.yellow_lane_lateral_distance + self.white_lane_lateral_distance) / 2.0
-            
-            # Error is how far we are from target (desired - current)
-            self.error = 0.0 - target_lateral  # Assume we want to be at 0.0m laterally
-            
-            # Get control output (angular velocity)
-            omega = self.get_control_output(self.error)
-            
-            # Adjust speed based on error
-            speed_factor = 1.0 - min(1.0, abs(self.error) * 2)
-            forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
-            
-            # Publish command
-            self.publish_cmd(omega, forward_speed)
-            
-        elif self.yellow_lane_detected:
+
+        if self.yellow_lane_detected:
             # Only yellow lane detected, maintain fixed offset
             # Usually yellow lane is on the left, so we want to stay a bit to the right
             # Based on homography from robot's POV, left is +ve y-axis so we add -ve offset
@@ -234,7 +215,7 @@ class LaneControllerNode(DTROS):
             forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
             
             self.publish_cmd(omega, forward_speed)
-            
+
         elif self.white_lane_detected:
             # Only white lane detected, maintain fixed offset
             # White lane is usually on the right, so we want to stay a bit to the left
@@ -250,6 +231,25 @@ class LaneControllerNode(DTROS):
             forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
             
             self.publish_cmd(omega, forward_speed)
+
+        elif self.yellow_lane_detected and self.white_lane_detected:
+            # Target position is the midpoint between lanes
+            target_lateral = (self.yellow_lane_lateral_distance + self.white_lane_lateral_distance) / 2.0
+            
+            # Error is how far we are from target (desired - current)
+            self.error = 0.0 - target_lateral  # Assume we want to be at 0.0m laterally
+            
+            # Get control output (angular velocity)
+            omega = self.get_control_output(self.error)
+            
+            # Adjust speed based on error
+            speed_factor = 1.0 - min(1.0, abs(self.error) * 2)
+            forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
+            
+            # Publish command
+            self.publish_cmd(omega, forward_speed)
+                
+        
 
     # add other functions as needed
 

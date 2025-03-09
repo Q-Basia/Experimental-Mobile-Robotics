@@ -300,8 +300,8 @@ class LaneDetectionNode(DTROS):
         yellow_mask = cv2.dilate(yellow_mask, np.ones((5, 5), "uint8"))
         
         # White lane detection
-        white_lower = np.array([121, 13, 183], np.uint8)
-        white_upper = np.array([127, 39, 255], np.uint8)
+        white_lower = np.array([122, 0, 202], np.uint8)
+        white_upper = np.array([123, 36, 236], np.uint8)
         white_mask = cv2.inRange(hsvFrame, white_lower, white_upper)
         white_mask = cv2.dilate(white_mask, np.ones((5, 5), "uint8"))
         
