@@ -300,8 +300,8 @@ class LaneDetectionNode(DTROS):
         yellow_mask = cv2.dilate(yellow_mask, np.ones((5, 5), "uint8"))
         
         # White lane detection
-        white_lower = np.array([122, 0, 202], np.uint8)
-        white_upper = np.array([123, 36, 236], np.uint8)
+        white_lower = np.array([121, 13, 183], np.uint8)
+        white_upper = np.array([127, 39, 255], np.uint8)
         white_mask = cv2.inRange(hsvFrame, white_lower, white_upper)
         white_mask = cv2.dilate(white_mask, np.ones((5, 5), "uint8"))
         
@@ -369,10 +369,9 @@ class LaneDetectionNode(DTROS):
                     white_msg.detected = True
                     white_msg.lateral_distance = ground_y
                     white_msg.forward_distance = ground_x
-                    
                     annotated_img = cv2.rectangle(annotated_img, (x, y), (x + w, y + h), (255, 255, 255), 2)
                     text = f"Dist: {ground_x:.2f}m, {ground_y:.2f}m"
-                    cv2.putText(annotated_img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                    cv2.putText(annotated_img, text, (x - w, y + h + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         # Publish white lane distance
         self.white_lane_distance_pub.publish(white_msg)

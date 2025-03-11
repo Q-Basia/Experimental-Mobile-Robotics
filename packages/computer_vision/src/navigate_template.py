@@ -335,22 +335,18 @@ class NavigationControl(DTROS):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Lane-following behavior controller')
-    
-    # Add arguments
     parser.add_argument('--lane', type=str, choices=['red', 'green', 'blue', 'none'], 
                       default='none', help='Lane behavior to execute (red, green, blue, or none)')
     
     # Parse arguments provided by ROS launch file
-    # Note: We need to parse the arguments from the ROS command line
+    # Note: We need to parse the arguments from the ROS command line or add these in the launchers
     args = parser.parse_args(rospy.myargv()[1:])
-    
-    # Initialize the node
+ 
     node = NavigationControl(node_name='navigation_control_node')
     
     # Wait a bit for the service to be available
     rospy.sleep(2)
     
-    # Execute the requested behavior based on command line arguments
     if args.lane == 'red':
         node.execute_red_lane_behaviour()
     elif args.lane == 'green':

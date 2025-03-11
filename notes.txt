@@ -67,6 +67,8 @@ or [0, 111, 162] to [179, 255, 255]
 
 yellow: [20, 101, 105] to [29, 255, 255]
 white: [121, 13, 183] to [127, 39, 255]
+or [122, 0, 202] to [123, 36, 236]
+or [121, 31, 193] to [124, 36, 232]
 
 homography:
 - -4.99621433668091e-05
@@ -83,9 +85,14 @@ used chatgpt to understand how services work for part 1.6 to combine previous pa
 Note that to create a custom service that exchanges custom requests and responses, must create a .srv file in your package and include it in the .xml and CMakeLists files
 Always start the service server node first (lane_detection in our case)
 
+Ideally, which was my initial plan was to calculate the midpoint between white lane and yellow lanes at all time and use that to control.
+However, because the white lane dusty and long, it was hard to get a stable contour detection leading to slightly irregular behaviour
+For the purposes of this lab, I decided to make it prioritize following the left lane to a certain distance even if the white lane is also detected.
+Then only use the white lane if the yellow lane is not detected.
+This approach works perfectly, but it assumes that I know an estimation of the width of the road (distance between both lanes) beforehand instead of dynamically using the lenghts of both lanes
 
 
-
+Tried command line arg, didn't work
 
 
 
