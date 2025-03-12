@@ -15,12 +15,12 @@ class LaneControllerNode(DTROS):
         # add your code here
         self._vehicle_name = os.environ['VEHICLE_NAME']
         
-        self.controller_type = "pid"  # Can be p, pd or pid
+        self.controller_type = "pd"  # Can be p, pd or pid
         
         # PID gains 
         self.Kp = 30.0  # Proportional gain
-        self.Ki = 0.1   # Integral gain
-        self.Kd = 0.5   # Derivative gain
+        self.Ki = 0.03   # Integral gain
+        self.Kd = 0.7   # Derivative gain
         
         # control variables
         self.proportional = 0.0
@@ -40,6 +40,7 @@ class LaneControllerNode(DTROS):
         self.current_distance = 0.0
         self.target_distance = 1.5  # Target distance to travel (meters)
         self.is_moving = False
+        self.duration = 12 # Set this to make your bot move for the specified time
         
         # initialize publisher/subscribers
         self.lane_sub = rospy.Subscriber(
@@ -47,18 +48,6 @@ class LaneControllerNode(DTROS):
             LaneDistance,
             self.lane_callback
         )
-
-        # self.yellow_lane_sub = rospy.Subscriber(
-        #     f'/{self._vehicle_name}/lane_detection_node/yellow_lane_distance',
-        #     LaneDistance,
-        #     self.yellow_lane_callback
-        # )
-        
-        # self.white_lane_sub = rospy.Subscriber(
-        #     f'/{self._vehicle_name}/lane_detection_node/white_lane_distance',
-        #     LaneDistance,
-        #     self.white_lane_callback
-        # )
         
         self.cmd_vel_pub = rospy.Publisher(
             f'/{self._vehicle_name}/car_cmd_switch_node/cmd',
@@ -76,7 +65,6 @@ class LaneControllerNode(DTROS):
         self.target_lateral_position = 0.0  # meters from center
         
         # Time tracking for integral and derivative control
-        # rospy.wait_for_message(f"/{self._vehicle_name}/lane_detection_node/lane_info", LaneDistance)
         self.last_callback_time = rospy.get_time()
         self.start_time = rospy.Time.now().to_sec()
 
@@ -147,7 +135,7 @@ class LaneControllerNode(DTROS):
     def publish_cmd(self, omega, speed=None):
         # If we've reached the target distance, stop
         time = rospy.Time.now().to_sec()
-        if time - self.start_time >= 10:
+        if time - self.start_time >= self.duration:
             if self.is_moving:
                 rospy.loginfo(f"duration ended")
                 self.is_moving = False
@@ -181,24 +169,6 @@ class LaneControllerNode(DTROS):
         cmd_msg.omega = omega
         self.cmd_vel_pub.publish(cmd_msg)
         
-    # def yellow_lane_callback(self, msg):
-    #     self.yellow_lane_detected = msg.detected
-    #     if msg.detected:
-    #         self.yellow_lane_lateral_distance = msg.lateral_distance
-    #         self.yellow_lane_forward_distance = msg.forward_distance
-            
-    #         self.update_control()
-
-    # def white_lane_callback(self, msg):
-    #     self.white_lane_detected = msg.detected
-    #     if msg.detected:
-    #         self.white_lane_lateral_distance = msg.lateral_distance
-    #         self.white_lane_forward_distance = msg.forward_distance
-            
-    #         # Update control (only if yellow lane not detected to avoid duplicate)
-    #         if not self.yellow_lane_detected:
-    #             self.update_control()
-    
     def lane_callback(self, msg):
         self.yellow_lane_detected = msg.yellow_detected
         if msg.yellow_detected:
