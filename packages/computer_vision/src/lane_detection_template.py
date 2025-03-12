@@ -185,9 +185,9 @@ class LaneDetectionNode(DTROS):
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (0, 0, 255), 2)
-                dimensions_text = f"{w}x{h}x{ground_x}"
+                dimensions_text = f"{w}x{h},{ground_x:0.2f}m"
                 cv2.putText(image, dimensions_text, (x, y + h + 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)     
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)     
 
         # Creating contour to track green color 
         contours, hierarchy = cv2.findContours(green_mask, 
@@ -208,7 +208,7 @@ class LaneDetectionNode(DTROS):
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (0, 255, 0), 2) 
-                dimensions_text = f"{w}x{h}x{ground_x}"
+                dimensions_text = f"{w}x{h},{ground_x:0.2f}m"
                 cv2.putText(image, dimensions_text, (x, y + h + 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
 
@@ -230,7 +230,7 @@ class LaneDetectionNode(DTROS):
                 image = cv2.rectangle(image, (x, y), 
                                         (x + w, y + h), 
                                         (255, 0, 0), 2) 
-                dimensions_text = f"{w}x{h}x{ground_x}"
+                dimensions_text = f"{w}x{h}.{ground_x:0.2f}m"
                 cv2.putText(image, dimensions_text, (x, y + h + 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
         return image

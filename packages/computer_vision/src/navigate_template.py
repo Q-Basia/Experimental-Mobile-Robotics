@@ -104,13 +104,6 @@ class NavigationControl(DTROS):
     def wait(self, duration):
         rospy.loginfo(f"Stopping for {duration} seconds.")
 
-        # Publish LED color (Red for stop)
-        self.set_led_color([[1, 0, 0, 1],
-                                [1, 0, 0, 1],
-                                [1, 0, 0, 1],
-                                [1, 0, 0, 1],
-                                [1, 0, 0, 1],])
-
         # Stop movement
         self.v=0
         self.omega=0
@@ -164,33 +157,38 @@ class NavigationControl(DTROS):
                                 [1, 1, 1, 1],
                                 [1, 1, 1, 1],])
 
-        self.turn(angle, radius, lin_v=0.4)
+        self.turn(angle, radius, lin_v=0.5)
         
 
     # add other functions as needed
-    def turn(self, angle, radius, lin_v = 0.4):
+    def turn(self, angle, radius, lin_v = 0.6):
 
         # linear speed and duration
         self.v = abs(lin_v)
-        self.omega = lin_v/radius
+        if lin_v < 0:
+            self.omega = (lin_v-0.7)/radius
+        else:
+            self.omega = (lin_v+0.7)/radius
         duration = angle/abs(self.omega)
+        # duration = 5
         start_time = rospy.Time.now().to_sec()
 
-        while rospy.Time.now().to_sec() - start_time < duration:
+        while rospy.Time.now().to_sec() - start_time < duration+0.7:
             self.publish_velocity()
             self.rate.sleep()
 
         # Stop after turning
+        rospy.loginfo(f"duration: {rospy.Time.now().to_sec() - start_time}")
         self.stop()
 
     def execute_red_lane_behaviour(self):
         rospy.loginfo("Executing Red Lane Behaviour")
 
-        self.set_led_color([[1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
+        self.set_led_color([[2, 1, 0, 1],
+                            [2, 1, 0, 1],
+                            [2, 1, 0, 1],
+                            [2, 1, 0, 1],
+                            [2, 1, 0, 1],
                             ])
         
         detected_red_line = False
@@ -223,8 +221,19 @@ class NavigationControl(DTROS):
                     break
             else:
                 rospy.logwarn("Red Lane service not availble")
-                break
+                breakself.set_led_color([[2, 1, 0, 1],
+                            [2, 1, 0, 1],
+                            [2, 1, 0, 1],
+                            [2, 1, 0, 1],
+                            [2, 1, 0, 1],
+                            ])
         
+        self.set_led_color([[1, 0, 0, 1],
+                            [1, 0, 0, 1],
+                            [1, 0, 0, 1],
+                            [1, 0, 0, 1],
+                            [1, 0, 0, 1],
+                            ])
         rospy.loginfo(f"Stopping before red lane for 4 seconds")
         self.wait(4) # Wait for 4 seconds
         
@@ -236,17 +245,17 @@ class NavigationControl(DTROS):
     def execute_green_lane_behaviour(self):
         rospy.loginfo("Executing GREEN Lane Behaviour")
 
-        self.set_led_color([[1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
+        self.set_led_color([[1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
                             ])
         
         detected_green_line = False
         stop_distance = 0.20
 
-        self.v = 0.2
+        self.v = 0.3
         self.omega = 0
 
         start_time = rospy.Time.now().to_sec()
@@ -274,29 +283,36 @@ class NavigationControl(DTROS):
             else:
                 rospy.logwarn("GREEN Lane service not availble")
                 break
+
+        self.set_led_color([[0, 1, 0, 1],
+                            [0, 1, 0, 1],
+                            [0, 1, 0, 1],
+                            [0, 1, 0, 1],
+                            [0, 1, 0, 1],
+                            ])
         
         rospy.loginfo(f"Stopping before GREEN lane for 4 seconds")
         self.wait(4) # Wait for 4 seconds
         
         rospy.loginfo(f"Turning LEFT past GREEN lane")
-        self.turn_left(math.pi/2, 0.25)
+        self.turn_left(math.pi, 0.3)
 
         rospy.loginfo(f"Completed GREEN Line behaviour")
 
     def execute_blue_lane_behaviour(self):
         rospy.loginfo("Executing BLUE Lane Behaviour")
 
-        self.set_led_color([[1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
-                            [1, 0, 0, 1],
+        self.set_led_color([[1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
                             ])
         
         detected_blue_line = False
         stop_distance = 0.20
 
-        self.v = 0.2
+        self.v = 0.4
         self.omega = 0
 
         start_time = rospy.Time.now().to_sec()
@@ -324,12 +340,18 @@ class NavigationControl(DTROS):
             else:
                 rospy.logwarn("BLUE Lane service not availble")
                 break
-        
+            
+        self.set_led_color([[0, 0, 1, 1],
+                            [0, 0, 1, 1],
+                            [0, 0, 1, 1],
+                            [0, 0, 1, 1],
+                            [0, 0, 1, 1],
+                            ])
         rospy.loginfo(f"Stopping before BLUE lane for 4 seconds")
         self.wait(4) # Wait for 4 seconds
         
         rospy.loginfo(f"Turning RIGHT past BLUE lane")
-        self.turn_right(math.pi/2, 0.25)
+        self.turn_right(math.pi, 0.2)
 
         rospy.loginfo(f"Completed BLUE Line behaviour")
 
@@ -338,7 +360,7 @@ if __name__ == '__main__':
     parser.add_argument('--lane', type=str, choices=['red', 'green', 'blue', 'none'], 
                       default='none', help='Lane behavior to execute (red, green, blue, or none)')
     
-    # Parse arguments provided by ROS launch file
+    # Parse arguments provided by ROS launch filerospy.Time.now().to_sec() - start_time
     # Note: We need to parse the arguments from the ROS command line or add these in the launchers
     args = parser.parse_args(rospy.myargv()[1:])
  

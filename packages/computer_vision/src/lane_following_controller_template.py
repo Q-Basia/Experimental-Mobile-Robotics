@@ -15,11 +15,11 @@ class LaneControllerNode(DTROS):
         # add your code here
         self._vehicle_name = os.environ['VEHICLE_NAME']
         
-        self.controller_type = "pd"  # Can be p, pd or pid
+        self.controller_type = "pid"  # Can be p, pd or pid
         
         # PID gains 
         self.Kp = 30.0  # Proportional gain
-        self.Ki = 0.03   # Integral gain
+        self.Ki = 0.1   # Integral gain
         self.Kd = 0.7   # Derivative gain
         
         # control variables
@@ -99,7 +99,7 @@ class LaneControllerNode(DTROS):
         if dt > 0:
             self.integral += error * dt
             # Anti-windup: limit the integral term
-            self.integral = max(min(self.integral, 1.0), -1.0)
+            # self.integral = max(min(self.integral, 1.0), -1.0)
             
             # Calculate derivative term
             self.derivative = (error - self.prev_error) / dt
@@ -209,11 +209,12 @@ class LaneControllerNode(DTROS):
             # Only yellow lane detected, maintain fixed offset
             # Usually yellow lane is on the left, so we want to stay a bit to the right
             # Based on homography from robot's POV, left is +ve y-axis so we add +ve distance
-            target_distance = 0.10  # meters
+            target_distance = 0.15  # meters
 
             self.error = self.yellow_lane_lateral_distance - target_distance
             rospy.loginfo(f"error: {self.error}")
-            omega = self.get_control_output(self.error)
+            TURN_FACTOR = 1.5
+            omega = TURN_FACTOR*self.get_control_output(self.error)
             rospy.loginfo(f"omega: {omega}")
             # Reduce speed when only one lane detected
             speed_factor = 0.6 - min(0.5, abs(self.error))
@@ -226,12 +227,13 @@ class LaneControllerNode(DTROS):
             # Only white lane detected, maintain fixed offset
             # White lane is usually on the right, so we want to stay a bit to the left
             # Based on homography from robot's POV, right is -ve y-axis so we add +ve offset
-            target_offset = -0.10  # meters
+            target_offset = -0.15  # meters
             # target_lateral = self.white_lane_lateral_distance + target_offset
             
             # self.error = 0.0 + target_lateral
             self.error = self.white_lane_lateral_distance - target_offset
-            omega = self.get_control_output(self.error)
+            TURN_FACTOR = 1.5
+            omega = TURN_FACTOR*self.get_control_output(self.error)
             
             # Reduce speed when only one lane detected
             speed_factor = 0.6 - min(0.5, abs(self.error))
