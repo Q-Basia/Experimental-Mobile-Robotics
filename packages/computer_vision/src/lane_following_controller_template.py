@@ -209,11 +209,11 @@ class LaneControllerNode(DTROS):
             # Only yellow lane detected, maintain fixed offset
             # Usually yellow lane is on the left, so we want to stay a bit to the right
             # Based on homography from robot's POV, left is +ve y-axis so we add +ve distance
-            target_distance = 0.15  # meters
+            target_distance = 0.10  # meters
 
             self.error = self.yellow_lane_lateral_distance - target_distance
             rospy.loginfo(f"error: {self.error}")
-            TURN_FACTOR = 1.5
+            TURN_FACTOR = 1.2
             omega = TURN_FACTOR*self.get_control_output(self.error)
             rospy.loginfo(f"omega: {omega}")
             # Reduce speed when only one lane detected
@@ -227,12 +227,12 @@ class LaneControllerNode(DTROS):
             # Only white lane detected, maintain fixed offset
             # White lane is usually on the right, so we want to stay a bit to the left
             # Based on homography from robot's POV, right is -ve y-axis so we add +ve offset
-            target_offset = -0.15  # meters
+            target_offset = -0.10  # meters
             # target_lateral = self.white_lane_lateral_distance + target_offset
             
             # self.error = 0.0 + target_lateral
             self.error = self.white_lane_lateral_distance - target_offset
-            TURN_FACTOR = 1.5
+            TURN_FACTOR = 1.2
             omega = TURN_FACTOR*self.get_control_output(self.error)
             
             # Reduce speed when only one lane detected

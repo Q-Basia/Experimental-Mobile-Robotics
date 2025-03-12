@@ -310,8 +310,14 @@ class LaneDetectionNode(DTROS):
         yellow_mask = cv2.dilate(yellow_mask, np.ones((5, 5), "uint8"))
         
         # White lane detection
-        white_lower = np.array([115, 24, 221], np.uint8)
-        white_upper = np.array(  [127, 49, 238], np.uint8)
+        # room a
+        # white_lower = np.array([115, 24, 221], np.uint8)
+        # white_upper = np.array(  [127, 49, 238], np.uint8)
+
+        # room b
+        white_lower = np.array([120, 18, 155], np.uint8)
+        white_upper = np.array([128, 39, 255], np.uint8)
+        
         white_mask = cv2.inRange(hsvFrame, white_lower, white_upper)
         white_mask = cv2.dilate(white_mask, np.ones((5, 5), "uint8"))
         
@@ -360,9 +366,9 @@ class LaneDetectionNode(DTROS):
         if contours:
             largest_contour = max(contours, key=cv2.contourArea)
             area = cv2.contourArea(largest_contour)
-            if area > 300:
+            if area > 200:
                 x, y, w, h = cv2.boundingRect(largest_contour)
-                bottom_center_x = x
+                bottom_center_x = x + w // 2
                 bottom_center_y = y + h + self.org_img_h // 4 
                 
                 orig_x = bottom_center_x * 2
