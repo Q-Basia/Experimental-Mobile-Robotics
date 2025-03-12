@@ -1,3 +1,30 @@
+# Duckiebot Exercise 3 - Code Implementation
+
+## Collaborators
+Sami Jagirdar [ccid: jagirdar, sid: 1686267]
+Basia Ofovwe [ccid: ofovwe, sid: 1667223]
+
+# Running Lane detection (1.1-1.3 + 2.1)
+code is in \packages\computer_vision\src\lane_detection_template.py
+run using launcher lane-detection.sh
+
+# Running Navigation and LED control (1.4-1.5)
+code is in \packages\computer_vision\src\navigate.py
+red line behaviour launcher red-line.sh
+blue line behaviour launcher blue-line.sh
+green line behaviour launcher green-line.sh
+
+# Running PID controllers and Lane Following (2.2 and 3)
+code is in \packages\computer_vision\src\lane_following_controller_template.py
+run using lane-controller.sh
+
+Alternatively to directly give pid gain values from command line,
+use \packages\computer_vision\src\alt_lane_following_controller_template.py
+Copy the computer_vision package to the docker container running dt-gui-tools in the packages folder
+Run catkin build
+then run source devel/build
+
+
 # Template: template-ros
 
 This template provides a boilerplate repository
