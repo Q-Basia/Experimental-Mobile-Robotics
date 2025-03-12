@@ -69,6 +69,9 @@ yellow: [20, 101, 105] to [29, 255, 255]
 white: [121, 13, 183] to [127, 39, 255]
 or [122, 0, 202] to [123, 36, 236]
 or [121, 31, 193] to [124, 36, 232]
+or [112, 24, 173] to [125, 205, 255]
+or [118, 29, 174] to [134, 46, 213]
+or [115, 24, 221] to [127, 49, 238]
 
 homography:
 - -4.99621433668091e-05
@@ -94,6 +97,18 @@ This approach works perfectly, but it assumes that I know an estimation of the w
 
 Tried command line arg, didn't work
 
+for white detection, used top point because bounding box is big
+
+homography:
+- -4.4176150901508024e-05
+- 0.0004846965281425196
+- 0.30386285736827856
+- -0.0015921548874079563
+- 1.0986376221035314e-05
+- 0.4623061006515125
+- -0.00029009271219456394
+- 0.011531091762722323
+- -1.4589875279686733
 
 
 

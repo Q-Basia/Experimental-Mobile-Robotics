@@ -1,5 +1,11 @@
 # LaneDistance.msg
 Header header
-bool detected
-float32 lateral_distance  # lateral distance in meters
-float32 forward_distance  # forward distance in meters
+# Yellow lane information
+bool yellow_detected
+float32 yellow_lateral_distance  # meters, positive means left of vehicle center
+float32 yellow_forward_distance  # meters, forward from vehicle
+
+# White lane information
+bool white_detected
+float32 white_lateral_distance   # meters, positive means left of vehicle center
+float32 white_forward_distance   # meters, forward from vehicle

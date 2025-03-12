@@ -5,13 +5,9 @@
 # import required libraries
 import os
 import rospy
-import numpy as np
 from duckietown.dtros import DTROS, NodeType
 from duckietown_msgs.msg import Twist2DStamped
-from std_msgs.msg import Float32, Bool
 from computer_vision.msg import LaneDistance
-import cv2
-from cv_bridge import CvBridge
 
 class LaneControllerNode(DTROS):
     def __init__(self, node_name):
@@ -19,12 +15,12 @@ class LaneControllerNode(DTROS):
         # add your code here
         self._vehicle_name = os.environ['VEHICLE_NAME']
         
-        self.controller_type = "p"  # Can be p, pd or pid
+        self.controller_type = "pid"  # Can be p, pd or pid
         
         # PID gains 
         self.Kp = 30.0  # Proportional gain
         self.Ki = 0.1   # Integral gain
-        self.Kd = 1.0   # Derivative gain
+        self.Kd = 0.5   # Derivative gain
         
         # control variables
         self.proportional = 0.0
@@ -46,25 +42,29 @@ class LaneControllerNode(DTROS):
         self.is_moving = False
         
         # initialize publisher/subscribers
-        self.yellow_lane_sub = rospy.Subscriber(
-            f'/{self._vehicle_name}/lane_detection_node/yellow_lane_distance',
+        self.lane_sub = rospy.Subscriber(
+            f"/{self._vehicle_name}/lane_detection_node/lane_info",
             LaneDistance,
-            self.yellow_lane_callback
+            self.lane_callback
         )
+
+        # self.yellow_lane_sub = rospy.Subscriber(
+        #     f'/{self._vehicle_name}/lane_detection_node/yellow_lane_distance',
+        #     LaneDistance,
+        #     self.yellow_lane_callback
+        # )
         
-        self.white_lane_sub = rospy.Subscriber(
-            f'/{self._vehicle_name}/lane_detection_node/white_lane_distance',
-            LaneDistance,
-            self.white_lane_callback
-        )
+        # self.white_lane_sub = rospy.Subscriber(
+        #     f'/{self._vehicle_name}/lane_detection_node/white_lane_distance',
+        #     LaneDistance,
+        #     self.white_lane_callback
+        # )
         
         self.cmd_vel_pub = rospy.Publisher(
             f'/{self._vehicle_name}/car_cmd_switch_node/cmd',
             Twist2DStamped,
             queue_size=1
         )
-        
-        self.bridge = CvBridge()
         
         # Variables to store lane information
         self.yellow_lane_detected = False
@@ -76,9 +76,10 @@ class LaneControllerNode(DTROS):
         self.target_lateral_position = 0.0  # meters from center
         
         # Time tracking for integral and derivative control
+        # rospy.wait_for_message(f"/{self._vehicle_name}/lane_detection_node/lane_info", LaneDistance)
         self.last_callback_time = rospy.get_time()
         self.start_time = rospy.Time.now().to_sec()
-        
+
         rospy.loginfo(f"Lane controller initialized with {self.controller_type} control")
         rospy.Rate(20)
 
@@ -172,7 +173,7 @@ class LaneControllerNode(DTROS):
         
         # Limit angular velocity
         omega = max(min(omega, self.max_omega), -self.max_omega)
-        
+        rospy.loginfo(f"omega: {omega}")
         # Create and publish velocity command
         cmd_msg = Twist2DStamped()
         cmd_msg.header.stamp = rospy.Time.now()
@@ -180,25 +181,39 @@ class LaneControllerNode(DTROS):
         cmd_msg.omega = omega
         self.cmd_vel_pub.publish(cmd_msg)
         
-
-    def yellow_lane_callback(self, msg):
-        self.yellow_lane_detected = msg.detected
-        if msg.detected:
-            self.yellow_lane_lateral_distance = msg.lateral_distance
-            self.yellow_lane_forward_distance = msg.forward_distance
+    # def yellow_lane_callback(self, msg):
+    #     self.yellow_lane_detected = msg.detected
+    #     if msg.detected:
+    #         self.yellow_lane_lateral_distance = msg.lateral_distance
+    #         self.yellow_lane_forward_distance = msg.forward_distance
             
+    #         self.update_control()
+
+    # def white_lane_callback(self, msg):
+    #     self.white_lane_detected = msg.detected
+    #     if msg.detected:
+    #         self.white_lane_lateral_distance = msg.lateral_distance
+    #         self.white_lane_forward_distance = msg.forward_distance
+            
+    #         # Update control (only if yellow lane not detected to avoid duplicate)
+    #         if not self.yellow_lane_detected:
+    #             self.update_control()
+    
+    def lane_callback(self, msg):
+        self.yellow_lane_detected = msg.yellow_detected
+        if msg.yellow_detected:
+            self.yellow_lane_lateral_distance = msg.yellow_lateral_distance
+            self.yellow_lane_forward_distance = msg.yellow_forward_distance
+
+        self.white_lane_detected = msg.white_detected
+        if msg.yellow_detected:
+            self.white_lane_lateral_distance = msg.white_lateral_distance
+            self.white_lane_forward_distance = msg.white_forward_distance
+
+        if msg.yellow_detected or msg.white_detected:
             self.update_control()
 
-    def white_lane_callback(self, msg):
-        self.white_lane_detected = msg.detected
-        if msg.detected:
-            self.white_lane_lateral_distance = msg.lateral_distance
-            self.white_lane_forward_distance = msg.forward_distance
-            
-            # Update control (only if yellow lane not detected to avoid duplicate)
-            if not self.yellow_lane_detected:
-                self.update_control()
-    
+        
     def update_control(self):
 
         if self.yellow_lane_detected and self.white_lane_detected:
@@ -210,11 +225,10 @@ class LaneControllerNode(DTROS):
 
             # Error > 0 --> bot is veering to the left of target position(ccw), give -ve omega (cw)
             # Error < 0 --> bot is veering to the right of target position(cw), give +ve omega (ccw)
-            self.error = 0.0 + target_position
+            self.error = 0.0 + target_position #small error offset because white is irregular so be closer to yellow
             rospy.loginfo(f"error: {self.error}")
 
             omega = self.get_control_output(self.error)
-            rospy.loginfo(f"omega: {omega}")
             speed_factor = 0.6 - min(0.5, abs(self.error))
             forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
             self.publish_cmd(omega, forward_speed)
@@ -254,9 +268,6 @@ class LaneControllerNode(DTROS):
             forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
             
             self.publish_cmd(omega, forward_speed)
-                     
-
-    # add other functions as needed
 
 if __name__ == '__main__':
     node = LaneControllerNode(node_name='lane_controller_node')
