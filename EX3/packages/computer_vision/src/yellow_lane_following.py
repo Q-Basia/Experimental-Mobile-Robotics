@@ -36,7 +36,7 @@ class LaneControllerNode(DTROS):
         self.error = 0.0
         
         # movement parameters
-        self.max_speed = 0.3      
+        self.max_speed = 0.25      
         self.min_speed = 0.1     
         self.max_omega = 5.0
         
@@ -58,6 +58,7 @@ class LaneControllerNode(DTROS):
             Twist2DStamped,
             queue_size=1
         )
+        self.cmd_msg = Twist2DStamped()
         
         # Variables to store lane information
         self.yellow_lane_detected = False
@@ -154,11 +155,11 @@ class LaneControllerNode(DTROS):
                 self.is_moving = False
             
             # Stop the robot
-            cmd_msg = Twist2DStamped()
-            cmd_msg.header.stamp = rospy.Time.now()
-            cmd_msg.v = 0.0
-            cmd_msg.omega = 0.0
-            self.cmd_vel_pub.publish(cmd_msg)
+            # cmd_msg = Twist2DStamped()
+            self.cmd_msg.header.stamp = rospy.Time.now()
+            self.cmd_msg.v = 0.0
+            self.cmd_msg.omega = 0.0
+            self.cmd_vel_pub.publish(self.cmd_msg)
             rospy.signal_shutdown("duration limit reached")
             return
             
@@ -175,11 +176,10 @@ class LaneControllerNode(DTROS):
         omega = max(min(omega, self.max_omega), -self.max_omega)
         rospy.loginfo(f"omega: {omega:.3f}\n")
         # Create and publish velocity command
-        cmd_msg = Twist2DStamped()
-        cmd_msg.header.stamp = rospy.Time.now()
-        cmd_msg.v = speed
-        cmd_msg.omega = omega
-        self.cmd_vel_pub.publish(cmd_msg)
+        self.cmd_msg.header.stamp = rospy.Time.now()
+        self.cmd_msg.v = speed
+        self.cmd_msg.omega = omega
+        self.cmd_vel_pub.publish(self.cmd_msg)
         
     def lane_callback(self, msg):
         self.yellow_lane_detected = msg.yellow_detected
@@ -203,14 +203,30 @@ class LaneControllerNode(DTROS):
             rospy.loginfo(f"yellow lane distance: {self.yellow_lane_lateral_distance}")
 
             if self.drive == 0:
-                target_distance = 0.10  # meters
+                target_distance = 0.07  # meters
             else:
-                target_distance = -0.10
+                target_distance = -0.08
 
             self.error = self.yellow_lane_lateral_distance - target_distance
             rospy.loginfo(f"error: {self.error}")
             omega = self.get_control_output(self.error)
-            rospy.loginfo(f"omega: {omega}")
+            # Reduce speed when only one lane detected
+            speed_factor = 0.6 - min(0.5, abs(self.error))
+            forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
+            
+            self.publish_cmd(omega, forward_speed)
+
+        elif self.white_lane_detected:
+            rospy.loginfo(f"white lane distance: {self.white_lane_lateral_distance}")
+
+            if self.drive == 0:
+                target_distance = -0.08  # meters
+            else:
+                target_distance = 0.07
+
+            self.error = self.white_lane_lateral_distance - target_distance
+            rospy.loginfo(f"error: {self.error}")
+            omega = self.get_control_output(self.error)
             # Reduce speed when only one lane detected
             speed_factor = 0.6 - min(0.5, abs(self.error))
             forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
@@ -236,6 +252,6 @@ if __name__ == '__main__':
     
     args = parser.parse_args(rospy.myargv()[1:])
 
-    node = LaneControllerNode(node_name='lane_controller_node', Kp=args.p, Ki=args.i, Kd=args.d, controller_type=args.n, duration=args.t, drive=args.drive)
+    node = LaneControllerNode(node_name='lane_controller_node', kp=args.p, ki=args.i, kd=args.d, controller_type=args.n, duration=args.t, drive=args.drive)
     
     rospy.spin()

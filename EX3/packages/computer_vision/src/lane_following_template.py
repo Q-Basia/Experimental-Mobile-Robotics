@@ -269,6 +269,6 @@ if __name__ == '__main__':
     
     args = parser.parse_args(rospy.myargv()[1:])
 
-    node = LaneControllerNode(node_name='lane_controller_node', Kp=args.p, Ki=args.i, Kd=args.d, controller_type=args.n, duration=args.t)
+    node = LaneControllerNode(node_name='lane_controller_node', kp=args.p, ki=args.i, kd=args.d, controller_type=args.n, duration=args.t)
     
     rospy.spin()
