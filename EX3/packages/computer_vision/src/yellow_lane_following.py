@@ -9,6 +9,7 @@ from duckietown.dtros import DTROS, NodeType
 from duckietown_msgs.msg import Twist2DStamped
 from computer_vision.msg import LaneDistance
 import argparse
+import math
 
 class LaneControllerNode(DTROS):
     def __init__(self, node_name, kp=30.0, ki=0.05, kd=2.2, controller_type="pd", duration=15, drive=0):
@@ -36,7 +37,7 @@ class LaneControllerNode(DTROS):
         self.error = 0.0
         
         # movement parameters
-        self.max_speed = 0.25      
+        self.max_speed = 0.2      
         self.min_speed = 0.1     
         self.max_omega = 5.0
         
@@ -203,7 +204,7 @@ class LaneControllerNode(DTROS):
             rospy.loginfo(f"yellow lane distance: {self.yellow_lane_lateral_distance}")
 
             if self.drive == 0:
-                target_distance = 0.07  # meters
+                target_distance = 0.08  # meters
             else:
                 target_distance = -0.08
 
@@ -217,21 +218,23 @@ class LaneControllerNode(DTROS):
             self.publish_cmd(omega, forward_speed)
 
         elif self.white_lane_detected:
-            rospy.loginfo(f"white lane distance: {self.white_lane_lateral_distance}")
+            rospy.loginfo(f"white lane distance: {self.white_lane_lateral_distance:0.3f}, {self.white_lane_forward_distance:0.3f}")
 
             if self.drive == 0:
-                target_distance = -0.08  # meters
+                target_distance = -0.15  # meters
             else:
                 target_distance = 0.07
 
             self.error = self.white_lane_lateral_distance - target_distance
+            if self.white_lane_forward_distance > 0.16:
+                self.error += 0.05
             rospy.loginfo(f"error: {self.error}")
             omega = self.get_control_output(self.error)
             # Reduce speed when only one lane detected
             speed_factor = 0.6 - min(0.5, abs(self.error))
             forward_speed = self.min_speed + (self.max_speed - self.min_speed) * speed_factor
             
-            self.publish_cmd(omega, forward_speed)
+            self.publish_cmd(omega, 0.1)
 
 if __name__ == '__main__':
 
