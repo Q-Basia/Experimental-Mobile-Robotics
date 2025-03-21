@@ -100,7 +100,12 @@ This approach works perfectly, but it assumes that I know an estimation of the w
 
 Tried command line arg, didn't work
 
-for white detection, used top point because bounding box is big
+for white detection, used a higher range and got the ground point like normal
+
+The common advice often given for most systems is to increase the Proportional setting, until you get good performance. 
+If you have to increase it so far that overshoot occurs (weaving, in the steering example) then start to add a little Derivative to stop the overshoot. 
+Then add more P+D to get better performance. 
+If you notice a state where it steers towards the centre but slows before getting there, start to add some I... but not so much that weaving begins again.
 
 homography:
 [-4.4176150901508024e-05,

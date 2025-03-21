@@ -353,6 +353,8 @@ class LaneDetectionNode(DTROS):
                     lane_msg.yellow_lateral_distance = ground_y
                     # ground_x is the forward distance
                     lane_msg.yellow_forward_distance = ground_x
+                    lane_msg.yellow_x = x + w//2
+                    lane_msg.yellow_y = x + h//2
                     
                     # Draw on visualization
                     annotated_img = cv2.rectangle(annotated_img, (x, y), (x + w, y + h), (0, 255, 255), 2)
@@ -380,6 +382,8 @@ class LaneDetectionNode(DTROS):
                     lane_msg.white_detected = True
                     lane_msg.white_lateral_distance = ground_y
                     lane_msg.white_forward_distance = ground_x
+                    lane_msg.white_x = x + w//2
+                    lane_msg.white_y = x + h//2
                     annotated_img = cv2.rectangle(annotated_img, (x, y), (x + w, y + h), (255, 255, 255), 2)
                     text = f"Dist:{ground_y:.2f}m"
                     cv2.putText(annotated_img, text, (5, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
