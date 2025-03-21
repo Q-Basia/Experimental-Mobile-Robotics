@@ -1,9 +1,15 @@
-# Duckiebot Exercise 3 - Code Implementation
+# Duckiebot Exercise 4 - Code Implementation
 
 ## Collaborators
 Sami Jagirdar [ccid: jagirdar, sid: 1686267]
 Basia Ofovwe [ccid: ofovwe, sid: 1667223]
 
+# Run 
+Launch default.sh file (curently launching AprilTag Detection + Navigation Control + Crosswalk Detection + Safe Navigation nodes)
+
+
+
+# -----------------------------------------------------------
 # Running Lane detection (1.1-1.3 + 2.1)
 code is in \packages\computer_vision\src\lane_detection_template.py
 run using launcher lane-detection.sh

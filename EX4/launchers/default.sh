@@ -12,9 +12,17 @@ dt-launchfile-init
 # NOTE: Use the variable DT_REPO_PATH to know the absolute path to your code
 # NOTE: Use `dt-exec COMMAND` to run the main process (blocking process)
 
-# launching app
+# Launch AprilTag detection node
+dt-exec rosrun packages apriltag_detection.py &
 
-# TBA
+# Launch Navigation Control node
+dt-exec rosrun packages navigate_template.py &
+
+# Launch Crosswalk Detection Node
+dt-exec rosrun packages crosswalk.py &
+
+# Launch Safe Navigation Node
+dt-exec rosrun packages safe_navigation.py &
 
 # ----------------------------------------------------------------------------
 # YOUR CODE ABOVE THIS LINE
