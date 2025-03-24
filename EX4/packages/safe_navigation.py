@@ -5,6 +5,15 @@
 # import required libraries
 import rospy
 from duckietown.dtros import DTROS, NodeType
+from std_msgs.msg import Bool
+import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import CompressedImage
+import numpy as np
+
+
+
+
 
 class SafeNavigationNode(DTROS):
 
@@ -29,7 +38,7 @@ class SafeNavigationNode(DTROS):
 
         rospy.loginfo("SafeNavigationNode initialized.")
 
-    def detect_bot(self, **kwargs):
+    def detect_bot(self, img):
         """
         Detects another Duckiebot in the way.
         Uses blue color filtering (since Duckiebots have blue bodies).
@@ -69,7 +78,7 @@ class SafeNavigationNode(DTROS):
         # Implement turning logic (simple left-right avoidance)
         self.obstacle_pub.publish(Bool(False))  # Signal that the path is now clear
 
-    def image_callback(self, **kwargs):
+    def image_callback(self, msg):
         """
         Process incoming camera image to detect obstacles (Duckiebots).
         """

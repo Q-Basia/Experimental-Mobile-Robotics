@@ -38,7 +38,7 @@ class CrossWalkNode(DTROS):
 
         rospy.loginfo("CrossWalkNode initialized.")
 
-    def detect_line(self, **kwargs):
+    def detect_line(self, img):
         """
         Detect blue crosswalk lines.
         """
@@ -53,7 +53,7 @@ class CrossWalkNode(DTROS):
             return True
         return False
 
-    def detect_ducks(self, **kwargs):
+    def detect_ducks(self, img):
         """
         Detect PeDuckstrians using color filtering.
         Uses yellow color filtering to detect small objects in the scene.
@@ -64,7 +64,7 @@ class CrossWalkNode(DTROS):
         lower_yellow = np.array([20, 100, 100])
         upper_yellow = np.array([30, 255, 255])
 
-        mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+        yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
         # yellow_pixels = cv2.countNonZero(mask)
 
         # if yellow_pixels > 200:  # Threshold to detect a PeDuckstrian
@@ -87,6 +87,7 @@ class CrossWalkNode(DTROS):
 
             # Ensure the shape is roughly circular (circularity > 0.7)
             if circularity < 0.7:
+                rospy.loginfo("small circle")
                 continue  # Likely a road marking
 
             # Looking for a Red Region Inside the Yellow Blob (Duck Mouth) ----
@@ -109,7 +110,7 @@ class CrossWalkNode(DTROS):
 
         return False  # No valid PeDuckstrians detected
 
-    def image_callback(self, **kwargs):
+    def image_callback(self, msg):
         """
         Process incoming camera image to detect crosswalk lines and PeDuckstrians.
         """

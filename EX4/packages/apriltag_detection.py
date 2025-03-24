@@ -5,6 +5,15 @@
 # import required libraries
 import rospy
 from duckietown.dtros import DTROS, NodeType
+import os
+import cv2
+from cv_bridge import CvBridge
+from sensor_msgs.msg import CompressedImage, CameraInfo
+from std_msgs.msg import ColorRGBA
+from duckietown_msgs.msg import LEDPattern
+import numpy as np
+from std_msgs.msg import Int32
+import dt_apriltags
 
 class ApriltagNode(DTROS):
 
@@ -38,11 +47,11 @@ class ApriltagNode(DTROS):
         self.got_camera_info = False
 
         # initialize dt_apriltag detector (using tag36h11 family)
-        self.detector = Detector(families='tag36h11')
+        self.detector = dt_apriltags.Detector(families='tag36h11')
 
         rospy.loginfo("ApriltagNode initialized.")
 
-    def sign_to_led(self, **kwargs):
+    def sign_to_led(self, tag_id):
         """
         Set the LED color based on tag ID
         """
@@ -62,7 +71,7 @@ class ApriltagNode(DTROS):
 
         self.led_pub.publish(pattern)
 
-    def process_image(self, **kwargs):
+    def process_image(self, image):
         """
         Preprocess image: undistort and convert to grayscale
         """
@@ -71,7 +80,7 @@ class ApriltagNode(DTROS):
         gray = cv2.cvtColor(undistorted, cv2.COLOR_BGR2GRAY)
         return gray, undistorted
 
-    def publish_augmented_img(self, **kwargs):
+    def publish_augmented_img(self, image):
         """
         Publish image with bounding boxes and tag IDs
         """
@@ -91,7 +100,7 @@ class ApriltagNode(DTROS):
             pattern.rgb_vals.append(rgba)
         self.led_pub.publish(pattern)
 
-    def detect_tag(self, **kwargs):
+    def detect_tag(self, gray, image):
         """
         Detect tags in the grayscale image and annotate them on the image
         """
@@ -117,7 +126,7 @@ class ApriltagNode(DTROS):
 
         return image
 
-    def camera_callback(self, **kwargs):
+    def camera_callback(self, msg):
         """
         Convert compressed image to CV2 image, process and detect AprilTags
         """
