@@ -10,9 +10,9 @@ Launch default.sh file (curently launching AprilTag Detection + Navigation Contr
 
 
 # -----------------------------------------------------------
-# Running Lane detection (1.1-1.3 + 2.1)
-code is in \packages\computer_vision\src\lane_detection_template.py
-run using launcher lane-detection.sh
+# Running AprilTag Detection (Part 1)
+code is in \packages\ex4\src\apriltag_detection.py
+run using launcher default.sh
 
 # Running Navigation and LED control (1.4-1.5)
 code is in \packages\computer_vision\src\navigate.py
