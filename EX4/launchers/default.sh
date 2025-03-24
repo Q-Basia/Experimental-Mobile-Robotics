@@ -13,16 +13,16 @@ dt-launchfile-init
 # NOTE: Use `dt-exec COMMAND` to run the main process (blocking process)
 
 # Launch AprilTag detection node
-dt-exec rosrun packages apriltag_detection.py &
+rosrun ex4 apriltag_detection.py
 
-# Launch Navigation Control node
-dt-exec rosrun packages navigate_template.py &
+# # Launch Navigation Control node
+# dt-exec rosrun packages navigate_template.py &
 
-# Launch Crosswalk Detection Node
-dt-exec rosrun packages crosswalk.py &
+# # Launch Crosswalk Detection Node
+# dt-exec rosrun packages crosswalk.py &
 
-# Launch Safe Navigation Node
-dt-exec rosrun packages safe_navigation.py &
+# # Launch Safe Navigation Node
+# dt-exec rosrun packages safe_navigation.py &
 
 # ----------------------------------------------------------------------------
 # YOUR CODE ABOVE THIS LINE
