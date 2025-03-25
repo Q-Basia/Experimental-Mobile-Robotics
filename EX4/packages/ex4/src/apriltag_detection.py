@@ -28,17 +28,18 @@ class ApriltagNode(DTROS):
         # subscribe to camera feed
         self.image_topic = f"/{self._vehicle_name}/camera_node/image/compressed"
         self.camera_info_topic = f"/{self._vehicle_name}/camera_node/camera_info"
-        self.camera_sub = rospy.Subscriber(self.image_topic, CompressedImage, self.camera_callback)
+        self.camera_sub = rospy.Subscriber(self.image_topic, CompressedImage, self.camera_callback, queue_size=1)
 
         # publishers for LEDs, augmented image and kinematics
-        self.led_pub = rospy.Publisher(f"/{self._vehicle_name}/led_emitter_node/led_pattern", LEDPattern, queue_size=10)
+        self.led_pub = rospy.Publisher(f"/{self._vehicle_name}/led_emitter_node/led_pattern", LEDPattern, queue_size=1)
+        self.red_pub = rospy.Publisher(f"/{self._vehicle_name}/apriltag_detector_node/image/compressed", CompressedImage, queue_size=1)
         self.aug_img_pub = rospy.Publisher(f"/{self._vehicle_name}/apriltag_detector_node/augmented/compressed", CompressedImage, queue_size=1)
         self.cmd_topic = f"/{self._vehicle_name}/car_cmd_switch_node/cmd"
         self.cmd_pub = rospy.Publisher(self.cmd_topic, Twist2DStamped, queue_size=1)
-        self.v = 0.2
+        self.v = 0.4
         self.omega = 0.0
         self.start = False
-        self.rate = rospy.Rate(20)
+        self.rate = rospy.Rate(5)
         rospy.on_shutdown(self.shutdown_hook)
 
         # call navigation control node
@@ -74,14 +75,20 @@ class ApriltagNode(DTROS):
         self.frame_count = 0
   
         # Higher value = less frequent detection 
-        self.apriltag_frame_skip = 3  # Run detection every 3 frames
+        self.apriltag_frame_skip = 5  # Run detection every 5 frames
         
         # Flag to track if robot is currently stopped
         self.is_stopped = False
         self.stop_start_time = None
 
         # initialize dt_apriltag detector (using tag36h11 family)
-        self.detector = dt_apriltags.Detector(families='tag36h11')
+        self.detector = dt_apriltags.Detector(families='tag36h11',
+                                         nthreads=1,
+                                         quad_decimate=2.0,  # This reduces resolution for detection
+                                         quad_sigma=0.0,
+                                         refine_edges=1,
+                                         decode_sharpening=0.25,
+                                         debug=0)
 
         rospy.loginfo("ApriltagNode initialized.")
 
@@ -90,19 +97,23 @@ class ApriltagNode(DTROS):
         Set the LED color based on tag ID
         """
         tag_type = None
-        if tag_id == 22:
+        if tag_id in [22,163]:
             color = [1, 0, 0, 1]  # Red - stop sign
+            rospy.loginfo("stop sign.")
             tag_type = "stop_sign"
         elif tag_id in [51, 133]:
             color = [0, 0, 1, 1]  # Blue - T-intersection
             tag_type = "t_intersection"
-        elif tag_id == 93:
+            rospy.loginfo("T intersection.")
+        elif tag_id in [93]:
             color = [0, 1, 0, 1]  # Green - UoA Tag
             tag_type = "uofa_tag"
+            rospy.loginfo("uofa tag.")
         else:
             tag_type = "none"
             color = [1, 1, 1, 1]  # White - default/no detection
 
+        
         pattern = LEDPattern()
         for _ in range(5):
             rgba = ColorRGBA(*color)
@@ -130,6 +141,16 @@ class ApriltagNode(DTROS):
         msg.data = np.array(cv2.imencode('.jpg', image)[1]).tobytes()
         self.aug_img_pub.publish(msg)
 
+    def publish_red_img(self, image):
+        """
+        Publish image with bounding boxes and tag IDs
+        """
+        msg = CompressedImage()
+        msg.header.stamp = rospy.Time.now()
+        msg.format = "jpeg"
+        msg.data = np.array(cv2.imencode('.jpg', image)[1]).tobytes()
+        self.red_pub.publish(msg)
+
     def publish_leds(self, **kwargs):
         """
         Publish the current LED color
@@ -147,9 +168,9 @@ class ApriltagNode(DTROS):
         detections = self.detector.detect(gray)
         tag_id = None
         tag_type = "none"
-        if not detections:
-            self.sign_to_led(None)
-            return image, tag_id, tag_type
+        # if not detections:
+        #     self.sign_to_led(None)
+        #     return image, tag_id, tag_type
 
         for det in detections:
             tag_id = det.tag_id
@@ -160,7 +181,8 @@ class ApriltagNode(DTROS):
                 np.linalg.norm(corners[1] - corners[3])   # diagonal 2
             ]
             tag_size = max(corner_dists)
-            if tag_size < 80: #Tag must be large i.e. close enough to consider detection
+            rospy.loginfo(tag_size)
+            if tag_size < 60: #Tag must be large i.e. close enough to consider detection
                 continue
 
             # Draw bounding box
@@ -168,7 +190,7 @@ class ApriltagNode(DTROS):
             cv2.putText(image, f"ID: {tag_id}", center, cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
 
             # Set LED color
-            tag_type = self.sign_to_led(tag_id)
+            rospy.loginfo("detected tag.")
 
             # Just use first tag detected
             break
@@ -191,8 +213,14 @@ class ApriltagNode(DTROS):
     def detect_red_line(self, image):
         """Detect red lines in the image"""
         # Convert to HSV color space
-        hsv_frame = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        image = image[480//2:,:]
+        display_image = image.copy()
+    
+        # Get image height
+        h, w = image.shape[:2]
+        
+        # Crop to only bottom half of the image
+        cropped_image = image[h//2:, :]
+        hsv_frame = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2HSV)
         
         # Create mask for red color
         red_mask = cv2.inRange(hsv_frame, self.red_lower, self.red_upper)
@@ -209,18 +237,21 @@ class ApriltagNode(DTROS):
         # Check contours for significant red areas
         for contour in contours:
             area = cv2.contourArea(contour)
-            if area > 500:  # Minimum area threshold
+            if area > 1500:  # Minimum area threshold
+                # rospy.loginfo("Red detected")
+                # red_line_detected = True
                 x, y, w, h = cv2.boundingRect(contour)
-                bottom_x, bottom_y = x + w // 2, y + h
+                bottom_x, bottom_y = x + w // 2, y + h + image.shape[0] // 2
                 ground_x, ground_y = self.project_pixel_to_ground(bottom_x, bottom_y)
                 # Draw bounding box on the image
-                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                cv2.putText(image, f"{ground_x}m", (x, y - 10), 
+                cv2.rectangle(cropped_image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                cv2.putText(cropped_image, f"{ground_x:0.2f}m, {ground_y:0.2f}m", (x, y + h + 10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-                if (abs(ground_x) <= 0.25):
+                if (abs(ground_x) <= 0.23):
                     red_line_detected = True
+                    rospy.loginfo(f"Red detected: {ground_x}m")
         
-        return red_line_detected, image
+        return red_line_detected, cropped_image
     
     def publish_velocity(self, v, omega):
         msg = Twist2DStamped()
@@ -237,18 +268,22 @@ class ApriltagNode(DTROS):
             # self.rate.sleep()
         
 
-    def manage_stopping(self, current_detection, red_detected):
-
+    def manage_stopping(self, current_detection, red_detected, tag_id):
+        self.is_stopped = True
+        # rospy.loginfo(f"current detection: {current_detection}, red_detected: {red_detected}")
         if red_detected and current_detection in self.stop_durations and self.stop_durations[current_detection] > 0:
             stop_duration = self.stop_durations[current_detection]
             self.stop(stop_duration)
 
             # Ensure we keep moving until the intersection (red line no longer detected)  
-            cooldown_duration = 1.5
+            cooldown_duration = 4
             current_time = rospy.get_time()
             while rospy.get_time() - current_time < cooldown_duration:
                 self.publish_velocity(self.v, self.omega)
                 # self.rate.sleep()
+            self.publish_velocity(0,0)
+
+        self.is_stopped = False
 
 
     def camera_callback(self, msg):
@@ -268,6 +303,8 @@ class ApriltagNode(DTROS):
             except:
                 rospy.logwarn("CameraInfo not received yet.")
                 return
+        if self.is_stopped:
+            return
             
         # if not self.start:
         #     self.publish_velocity(self.v, self.omega)
@@ -282,27 +319,28 @@ class ApriltagNode(DTROS):
         cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
         # Preprocess image
-        gray, undistorted = self.process_image(cv_image)
         red_line_detected = False
-        # red_line_detected, cv_image = self.detect_red_line(undistorted)
+        gray, undistorted = self.process_image(cv_image)
+        red_line_detected, cv_image = self.detect_red_line(undistorted)
+        # self.publish_red_img(cv_image)
         
         tag_id = None
         
         # Detect and annotate AprilTags
         if self.frame_count % self.apriltag_frame_skip == 0:
             annotated_img, tag_id, tag_type = self.detect_tag(gray, undistorted)
-            if tag_id is not None:
+            if tag_id is not None:               
                 self.last_detected_tag_type = tag_type
+                self.sign_to_led(tag_id)
                 self.last_detection_time = rospy.get_time()
+            else:
+                self.sign_to_led(tag_id)
             self.publish_augmented_img(annotated_img)
         
-        # Display frame processing rate information (useful for debugging)
-        if self.frame_count % 30 == 0:  # Update every 30 frames
-            fps_text = f"AprilTag detection every {self.apriltag_frame_skip} frames"
-            cv2.putText(annotated_img, fps_text, (10, 60),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                  
-        self.manage_stopping(self.last_detected_tag_type, red_line_detected)
+        self.manage_stopping(self.last_detected_tag_type, red_line_detected, tag_id)
+        # self.manage_stopping(None, red_line_detected, tag_id)
+
+        # self.rate.sleep()
         
         
     def shutdown_hook(self):
