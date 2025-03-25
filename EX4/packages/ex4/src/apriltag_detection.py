@@ -271,7 +271,7 @@ class ApriltagNode(DTROS):
     def manage_stopping(self, current_detection, red_detected, tag_id):
         self.is_stopped = True
         # rospy.loginfo(f"current detection: {current_detection}, red_detected: {red_detected}")
-        if red_detected and current_detection in self.stop_durations and self.stop_durations[current_detection] > 0:
+        if red_detected and current_detection in self.stop_durations:
             stop_duration = self.stop_durations[current_detection]
             self.stop(stop_duration)
 
@@ -303,15 +303,18 @@ class ApriltagNode(DTROS):
             except:
                 rospy.logwarn("CameraInfo not received yet.")
                 return
+            
         if self.is_stopped:
             return
             
-        # if not self.start:
-        #     self.publish_velocity(self.v, self.omega)
-        #     self.start = True
         if not self.start:
-            self.publish_velocity(0,0)
+            self.publish_velocity(self.v, self.omega)
             self.start = True
+        # if not self.start:
+        #     self.publish_velocity(0,0)
+        #     self.start = True
+        
+        self.sign_to_led(None) # Start with white color
 
         self.frame_count += 1
 
@@ -322,19 +325,18 @@ class ApriltagNode(DTROS):
         red_line_detected = False
         gray, undistorted = self.process_image(cv_image)
         red_line_detected, cv_image = self.detect_red_line(undistorted)
-        # self.publish_red_img(cv_image)
         
         tag_id = None
         
-        # Detect and annotate AprilTags
+        # Detect and annotate AprilTags in intervals of 5 frames
         if self.frame_count % self.apriltag_frame_skip == 0:
             annotated_img, tag_id, tag_type = self.detect_tag(gray, undistorted)
             if tag_id is not None:               
                 self.last_detected_tag_type = tag_type
                 self.sign_to_led(tag_id)
                 self.last_detection_time = rospy.get_time()
-            else:
-                self.sign_to_led(tag_id)
+            # else:
+                # self.sign_to_led(tag_id)
             self.publish_augmented_img(annotated_img)
         
         self.manage_stopping(self.last_detected_tag_type, red_line_detected, tag_id)
